@@ -10,6 +10,7 @@
 //	12 - fourth path appeared (and so on)
 //	1  - timeout expired before any path appeared
 //	2  - usage error
+//	3  - internal error (inotify or poll failure)
 package main
 
 import (
@@ -38,7 +39,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "  10  second path appeared\n")
 		_, _ = fmt.Fprintf(stderr, "  11  third path appeared (and so on)\n")
 		_, _ = fmt.Fprintf(stderr, "  1   timeout\n")
-		_, _ = fmt.Fprintf(stderr, "  2   usage error\n\n")
+		_, _ = fmt.Fprintf(stderr, "  2   usage error\n")
+		_, _ = fmt.Fprintf(stderr, "  3   internal error\n\n")
 		_, _ = fmt.Fprintf(stderr, "Options:\n")
 		fs.PrintDefaults()
 	}
@@ -56,6 +58,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
+	if *timeout < 0 {
+		_, _ = fmt.Fprintf(stderr, "waitfile: invalid timeout %d (must be >= 0)\n", *timeout)
+		return 2
+	}
 	var deadline time.Time
 	if *timeout > 0 {
 		deadline = time.Now().Add(time.Duration(*timeout) * time.Second)
@@ -69,7 +75,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 	idx, err := waitForFile(paths, deadline, contentOK)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "waitfile: %s\n", err)
-		return 1
+		if errors.Is(err, errTimeout) {
+			return 1
+		}
+		return 3
 	}
 
 	_, _ = fmt.Fprintln(stdout, paths[idx])

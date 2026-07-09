@@ -68,6 +68,18 @@ func TestRun_timeout(t *testing.T) {
 	}
 }
 
+func TestRun_negativeTimeout(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"-t", "-5", "/nonexistent/path/xyz"}, &stdout, &stderr)
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+	if !strings.Contains(stderr.String(), "invalid timeout") {
+		t.Errorf("stderr missing 'invalid timeout', got: %s", stderr.String())
+	}
+}
+
 func TestExitCode_mapping(t *testing.T) {
 	t.Parallel()
 
@@ -79,6 +91,7 @@ func TestExitCode_mapping(t *testing.T) {
 		{1, 10},
 		{2, 11},
 		{3, 12},
+		{4, 13},
 	}
 
 	for _, tt := range tests {
