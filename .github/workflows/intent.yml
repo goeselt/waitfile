@@ -1,0 +1,31 @@
+---
+name: Intent
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read # Least-privilege default
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  intent:
+    name: Intent
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read # Required to read repository commits.
+      pull-requests: write # Required to post/update PR comments.
+    steps:
+      - name: Validate Intent
+        uses: goeselt/intent@0ab5bbaa2e12d54e405da9e9664ac3328f2c274a # v1.2.3
+        with:
+          pr-comment: true

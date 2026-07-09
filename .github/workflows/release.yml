@@ -1,0 +1,68 @@
+---
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # Required to push the release commit and tag.
+      id-token: write # Required to create a SLSA attestation for the release.
+      attestations: write # Required to create a SLSA attestation for the release.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0 # full history needed to find the previous release tag
+
+      - id: intent
+        name: Intent Release
+        uses: goeselt/intent@0ab5bbaa2e12d54e405da9e9664ac3328f2c274a # v1.2.3
+        with:
+          initial-version: '1.0.0'
+
+      - name: Set Up Go
+        if: steps.intent.outputs.release-needed == 'true'
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+
+      - name: Build Release Assets
+        if: steps.intent.outputs.release-needed == 'true'
+        run: make release-assets
+
+      - name: Release
+        if: steps.intent.outputs.release-needed == 'true'
+        uses: goeselt/dispatch@72482f5dee11ae6ad32d44b9d926c6d1708dea98 # v1.3.6
+        with:
+          release-tag: ${{ steps.intent.outputs.release-tag }}
+          assets: |
+            dist/*.tar.gz
+            dist/checksums.txt
+          git-user-name: ${{ secrets.RELEASE_SIGNING_USER }}
+          git-user-email: ${{ secrets.RELEASE_SIGNING_EMAIL }}
+          signing-key: ${{ secrets.RELEASE_SIGNING_KEY }}
+
+      - name: Attest Build Provenance
+        if: steps.intent.outputs.release-needed == 'true'
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/checksums.txt

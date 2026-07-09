@@ -1,0 +1,60 @@
+---
+name: CI
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read # Least-privilege default
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # Required to check out the repository.
+      pull-requests: write # Required to post/update PR comments.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Set Up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+
+      - name: Check
+        run: make check
+
+      - name: Build
+        run: make build
+
+      - name: Pedant
+        id: pedant
+        continue-on-error: true
+        uses: goeselt/pedant@37e00e1bd7cb6c0ddb5f3765593e344620b0c44b # v1.4.1
+        with:
+          summary-github-step: true
+
+      - name: Publish Pedant Report
+        if: always()
+        uses: goeselt/remark@3863bca7cfacbc5eb562791ac3a04713346f602c # v1.0.6
+        with:
+          body: ${{ steps.pedant.outputs.summary }}
+          comment-key: pedant
+          skip-unchanged: true
+
+      - name: Fail On Pedant Findings
+        if: steps.pedant.outcome != 'success'
+        run: exit 1
