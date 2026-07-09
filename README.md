@@ -27,8 +27,8 @@ too slow or too fragile.
 
 ### Install
 
-Grab the latest binary from the [Releases](https://github.com/goeselt/waitfile/releases) page and put it on your
-`PATH`, or install with Go:
+Grab the latest binary from the [Releases](https://github.com/goeselt/waitfile/releases) page and put it on your `PATH`,
+or install with Go:
 
 ```bash
 go install github.com/goeselt/waitfile@latest
@@ -70,14 +70,15 @@ expires.
 
 ## Exit Codes
 
-| Code    | Meaning                                    |
-| ------- | ------------------------------------------ |
-| 0       | First path appeared                        |
-| 10      | Second path appeared                       |
-| 11      | Third path appeared                        |
-| 12+     | Fourth path and beyond (`9 + index`)       |
-| 1       | Timeout expired before any path appeared   |
-| 2       | Usage error                                |
+| Code | Meaning                                  |
+| ---- | ---------------------------------------- |
+| 0    | First path appeared                      |
+| 10   | Second path appeared                     |
+| 11   | Third path appeared                      |
+| 12+  | Fourth path and beyond (`9 + index`)     |
+| 1    | Timeout expired before any path appeared |
+| 2    | Usage error                              |
+| 3    | Internal error (inotify or poll failure) |
 
 The match codes let a calling script tell which of several competing files appeared first without parsing stdout.
 

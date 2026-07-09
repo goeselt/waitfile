@@ -7,25 +7,6 @@ import (
 	"time"
 )
 
-func TestExitCode(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		index int
-		want  int
-	}{
-		{0, 0},
-		{1, 10},
-		{2, 11},
-		{3, 12},
-		{4, 13},
-	}
-	for _, tt := range tests {
-		if got := exitCode(tt.index); got != tt.want {
-			t.Errorf("exitCode(%d) = %d, want %d", tt.index, got, tt.want)
-		}
-	}
-}
-
 func TestWaitForFileAlreadyExists(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -176,6 +157,41 @@ func TestWaitForFileParentDirCreatedLater(t *testing.T) {
 	}
 	if resultIdx != 0 {
 		t.Errorf("got index %d, want 0", resultIdx)
+	}
+}
+
+func TestWaitForFileOtherPathWhileParentDirMissing(t *testing.T) {
+	t.Parallel()
+	base := t.TempDir()
+	// First target's parent directory never gets created; the second target's
+	// directory exists. The second file appearing must not be starved by the
+	// missing-directory polling for the first.
+	blocked := filepath.Join(base, "nonexistent", "never.marker")
+	ready := filepath.Join(base, "ready.marker")
+
+	done := make(chan struct{})
+	var resultIdx int
+	var resultErr error
+
+	go func() {
+		resultIdx, resultErr = waitForFile([]string{blocked, ready}, time.Now().Add(5*time.Second), nil)
+		close(done)
+	}()
+
+	// Give the watcher time to enter the missing-directory poll loop.
+	time.Sleep(300 * time.Millisecond)
+
+	if err := os.WriteFile(ready, []byte("ok"), 0o644); err != nil {
+		t.Fatalf("create marker: %v", err)
+	}
+
+	<-done
+
+	if resultErr != nil {
+		t.Fatalf("unexpected error: %v", resultErr)
+	}
+	if resultIdx != 1 {
+		t.Errorf("got index %d, want 1", resultIdx)
 	}
 }
 

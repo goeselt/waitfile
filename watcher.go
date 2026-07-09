@@ -11,6 +11,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// errTimeout reports that the deadline expired before any path matched.
+// run maps it to the documented timeout exit code.
+var errTimeout = errors.New("timeout")
+
 // waitForFile blocks until one of the target paths exists on disk and satisfies
 // the optional content check.  When contentOK is nil the file only needs to
 // exist; when set, the file must also pass the check (e.g. non-empty).
@@ -59,8 +63,13 @@ func waitForFile(paths []string, deadline time.Time, contentOK func(string) bool
 			// it).  Poll until it appears or the deadline expires, then add the watch.
 			wd32, err := unix.InotifyAddWatch(fd, dir, watchMask)
 			for err != nil && errors.Is(err, unix.ENOENT) {
+				// Watches for the remaining paths are not established yet, so
+				// re-check all targets each round to avoid starving them.
+				if idx, ok := checkMatch(paths, contentOK); ok {
+					return idx, nil
+				}
 				if !deadline.IsZero() && time.Now().After(deadline) {
-					return -1, errors.New("timeout")
+					return -1, errTimeout
 				}
 				time.Sleep(250 * time.Millisecond)
 				wd32, err = unix.InotifyAddWatch(fd, dir, watchMask)
@@ -86,7 +95,7 @@ func waitForFile(paths []string, deadline time.Time, contentOK func(string) bool
 		if !deadline.IsZero() {
 			remaining := time.Until(deadline)
 			if remaining <= 0 {
-				return -1, errors.New("timeout")
+				return -1, errTimeout
 			}
 			timeoutMs = int(remaining.Milliseconds())
 			if timeoutMs <= 0 {
@@ -103,7 +112,7 @@ func waitForFile(paths []string, deadline time.Time, contentOK func(string) bool
 			return -1, fmt.Errorf("poll: %w", err)
 		}
 		if n == 0 {
-			return -1, errors.New("timeout")
+			return -1, errTimeout
 		}
 
 		nBytes, err := unix.Read(fd, buf)
